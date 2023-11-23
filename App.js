@@ -1,7 +1,10 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, Image } from 'react-native';
-import {useState} from 'react';
+import { StyleSheet, View, Platform } from 'react-native';
+import {useState, useRef} from 'react';
 import {GestureHandlerRootView } from "react-native-gesture-handler";
+import * as MediaLibrary from 'expo-media-library';
+import {captureRef} from 'react-native-view-shot';
+import domtoimage from 'dom-to-image';
 
 import ImageViewer from './components/ImageViewer';
 import Button from './components/Button';
@@ -20,6 +23,13 @@ export default function App() {
   const [showAppOptions, setShowAppOptions] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [pickedEmoji, setPickedEmoji] = useState(null);
+  const [status, requestPremission] = MediaLibrary.usePermissions();
+  const imageRef = useRef();
+
+  if(status === null)
+  {
+    requestPremission();
+  }
 
 
   const pickImageAsync = async () => {
@@ -42,17 +52,56 @@ export default function App() {
 
   const onReset = () => {};
   const onAddSticker = () => {setIsModalVisible(true)};
-  const onSaveImageAsync = () => {};
+  const onSaveImageAsync = async () => 
+  {
+    if(Platform.OS === 'web')
+    {
+      try
+      {
+        const localUri = await captureRef(imageRef, {height:440, quality: 1});
+  
+        await MediaLibrary.saveToLibraryAsync(localUri);
+        if(localUri)
+        {
+          alert("Saved");
+        }
+      }
+      catch(e)
+      {
+        console.log(e);
+      }
+    }
+    else
+    {
+      try
+      {
+        const dataUri = await domtoimage.toJpeg(imageRef.current, {quality: 0.25, width: 320, height: 440});
+
+        let link = document.createElement('a');
+        link.download = 'sticker-smach.jpeg';
+        link.href = dataUri;
+        link.click
+      }
+      catch (e)
+      {
+        console.log(e)
+      }
+    }
+
+  };
+
   const onModalClose = () => {setIsModalVisible(false)};
 
   return (
     <GestureHandlerRootView style={styles.container}>
       <View style={styles.imageContainer}>
-        <ImageViewer 
-          placeHolderImageSource={PlaceholderImage} 
-          selectedImage={selectedImage}
-        />
-        {pickedEmoji !== null? <EmojiSticker imageSize={40} stickerSource={pickedEmoji} /> : null}
+        <View ref={imageRef} collapsable={false}>
+          <ImageViewer 
+            placeHolderImageSource={PlaceholderImage} 
+            selectedImage={selectedImage}
+          />
+          {pickedEmoji !== null? <EmojiSticker imageSize={40} stickerSource={pickedEmoji} /> : null}
+        </View>
       </View>
 
       {showAppOptions ? (
@@ -73,7 +122,8 @@ export default function App() {
       <EmojiPicker isVisible={isModalVisible} onClose={onModalClose}>
         <EmojiList onSelect={setPickedEmoji} onCloseModal={onModalClose} />
       </EmojiPicker>  
-      <StatusBar style="auto" />
+
+      <StatusBar style="light" />
     </GestureHandlerRootView>
   );
 }
